@@ -1,0 +1,13 @@
+{
+  "name": "Lights Out // Neon Grid",
+  "short_name": "Lights Out",
+  "description": "A classic 5×5 electronic Lights Out puzzle.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#111310",
+  "theme_color": "#6d7470",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

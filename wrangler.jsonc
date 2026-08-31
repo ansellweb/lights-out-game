@@ -1,0 +1,6 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lights-out-neon",
+  "compatibility_date": "2026-08-31",
+  "assets": { "directory": "./public" }
+}
