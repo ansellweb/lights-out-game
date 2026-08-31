@@ -2,74 +2,64 @@ const SIZE = 5;
 const boardEl = document.querySelector('#board');
 const movesEl = document.querySelector('#moves');
 const bestEl = document.querySelector('#best');
+const levelEl = document.querySelector('#levelLabel');
 const messageEl = document.querySelector('#message');
 const soundToggle = document.querySelector('#soundToggle');
-let board = [];
-let startingBoard = [];
-let moves = 0;
-let muted = false;
-let audio;
-const bestKey = 'lights-out-neon-best';
+const installDialog = document.querySelector('#installDialog');
+const installButton = document.querySelector('#installApp');
+const dismissInstall = document.querySelector('#dismissInstall');
+let board = [], startingBoard = [], moves = 0, muted = false, audio, deferredInstallPrompt;
+const LEVEL_COOKIE = 'lights_out_level';
+const BEST_COOKIE = 'lights_out_best_';
+const INSTALL_COOKIE = 'lights_out_install_dismissed';
+const MAX_LEVEL = 99;
 
+function getCookie(name) { return document.cookie.split('; ').find(row => row.startsWith(`${name}=`))?.split('=')[1] ?? ''; }
+function setCookie(name, value, days = 3650) { document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${days * 86400}; path=/; SameSite=Lax`; }
+function currentLevel() { return Math.min(MAX_LEVEL, Math.max(1, Number(getCookie(LEVEL_COOKIE)) || 1)); }
 function blankBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(false)); }
 function copyGrid(grid) { return grid.map(row => [...row]); }
+function toggle(grid, row, col) { [[0,0],[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr, dc]) => { const r = row + dr, c = col + dc; if (r >= 0 && r < SIZE && c >= 0 && c < SIZE) grid[r][c] = !grid[r][c]; }); }
 function randomPuzzle() {
   const grid = blankBoard();
-  // Generate a guaranteed-solvable board by applying random legal moves to blank.
-  for (let i = 0; i < 18 + Math.floor(Math.random() * 18); i++) toggle(grid, Math.floor(Math.random() * SIZE), Math.floor(Math.random() * SIZE));
+  const level = currentLevel();
+  const scrambleMoves = Math.min(95, 8 + level * 3 + Math.floor(Math.random() * (level + 5)));
+  for (let i = 0; i < scrambleMoves; i++) toggle(grid, Math.floor(Math.random() * SIZE), Math.floor(Math.random() * SIZE));
   return grid;
-}
-function toggle(grid, row, col) {
-  [[0,0],[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr, dc]) => {
-    const r = row + dr, c = col + dc;
-    if (r >= 0 && r < SIZE && c >= 0 && c < SIZE) grid[r][c] = !grid[r][c];
-  });
 }
 function render() {
   boardEl.innerHTML = '';
   board.flatMap((row, r) => row.map((isOn, c) => {
-    const cell = document.createElement('button');
-    cell.className = `cell${isOn ? ' on' : ''}`;
-    cell.type = 'button'; cell.role = 'gridcell';
-    cell.ariaLabel = `Row ${r + 1}, column ${c + 1}, ${isOn ? 'on' : 'off'}`;
-    cell.ariaPressed = String(isOn);
-    cell.addEventListener('click', () => playMove(r, c, cell));
-    boardEl.appendChild(cell);
+    const cell = document.createElement('button'); cell.className = `cell${isOn ? ' on' : ''}`; cell.type = 'button'; cell.role = 'gridcell';
+    cell.ariaLabel = `Row ${r + 1}, column ${c + 1}, ${isOn ? 'on' : 'off'}`; cell.ariaPressed = String(isOn);
+    cell.addEventListener('click', () => playMove(r, c)); boardEl.appendChild(cell);
   }));
-  movesEl.textContent = String(moves).padStart(2, '0');
+  movesEl.textContent = String(moves).padStart(2, '0'); levelEl.textContent = `LEVEL ${String(currentLevel()).padStart(2, '0')}`;
 }
-function playMove(row, col, cell) {
-  if (isSolved()) return;
-  toggle(board, row, col); moves++;
-  sound('tap', moves);
-  render();
-  if (isSolved()) win();
-}
+function playMove(row, col) { if (isSolved()) return; toggle(board, row, col); moves++; sound('tap', moves); render(); if (isSolved()) win(); }
 function isSolved() { return board.every(row => row.every(value => !value)); }
 function win() {
-  const cells = [...document.querySelectorAll('.cell')];
-  cells.forEach((cell, index) => setTimeout(() => cell.classList.add('win'), index * 28));
-  const oldBest = Number(localStorage.getItem(bestKey) || 0);
-  if (!oldBest || moves < oldBest) { localStorage.setItem(bestKey, String(moves)); bestEl.textContent = String(moves).padStart(2, '0'); }
-  messageEl.textContent = `BLACKOUT ACHIEVED // ${moves} MOVES`;
-  sound('win');
+  [...document.querySelectorAll('.cell')].forEach((cell, index) => setTimeout(() => cell.classList.add('win'), index * 28));
+  const level = currentLevel(), best = Number(getCookie(`${BEST_COOKIE}${level}`)) || 0;
+  if (!best || moves < best) { setCookie(`${BEST_COOKIE}${level}`, moves); bestEl.textContent = String(moves).padStart(2, '0'); }
+  messageEl.textContent = level < MAX_LEVEL ? `BLACKOUT ACHIEVED // LEVEL ${String(level).padStart(2, '0')}` : 'ALL LEVELS COMPLETE'; sound('win');
+  if (level < MAX_LEVEL) { setCookie(LEVEL_COOKIE, level + 1); setTimeout(() => { startGame(); messageEl.textContent = `LEVEL ${String(level + 1).padStart(2, '0')} // SEQUENCE READY`; }, 1100); }
 }
-function startGame() { board = randomPuzzle(); startingBoard = copyGrid(board); moves = 0; messageEl.textContent = 'TAP A NODE TO BEGIN SEQUENCE'; render(); }
+function updateBest() { const best = Number(getCookie(`${BEST_COOKIE}${currentLevel()}`)) || 0; bestEl.textContent = best ? String(best).padStart(2, '0') : '--'; }
+function startGame() { board = randomPuzzle(); startingBoard = copyGrid(board); moves = 0; updateBest(); messageEl.textContent = 'TAP A NODE TO BEGIN SEQUENCE'; render(); }
 function resetGame() { board = copyGrid(startingBoard); moves = 0; messageEl.textContent = 'BOARD RESET // SEQUENCE READY'; render(); sound('reset'); }
-function sound(kind, step = 0) {
-  if (muted) return;
-  audio ??= new (window.AudioContext || window.webkitAudioContext)();
-  const osc = audio.createOscillator(), gain = audio.createGain();
-  const now = audio.currentTime;
-  const frequencies = { tap: 210 + (step % 5) * 32, reset: 120, win: 520 };
-  osc.type = kind === 'win' ? 'sine' : 'square'; osc.frequency.setValueAtTime(frequencies[kind], now);
-  if (kind === 'win') osc.frequency.exponentialRampToValueAtTime(1040, now + .35);
-  gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(kind === 'win' ? .14 : .055, now + .01); gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'win' ? .5 : .09));
-  osc.connect(gain).connect(audio.destination); osc.start(now); osc.stop(now + (kind === 'win' ? .52 : .1));
-}
+function sound(kind, step = 0) { if (muted) return; audio ??= new (window.AudioContext || window.webkitAudioContext)(); const osc = audio.createOscillator(), gain = audio.createGain(), now = audio.currentTime; const frequencies = { tap: 210 + (step % 5) * 32, reset: 120, win: 520 }; osc.type = kind === 'win' ? 'sine' : 'square'; osc.frequency.setValueAtTime(frequencies[kind], now); if (kind === 'win') osc.frequency.exponentialRampToValueAtTime(1040, now + .35); gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(kind === 'win' ? .14 : .055, now + .01); gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'win' ? .5 : .09)); osc.connect(gain).connect(audio.destination); osc.start(now); osc.stop(now + (kind === 'win' ? .52 : .1)); }
+
 document.querySelector('#newGame').addEventListener('click', () => { startGame(); sound('reset'); });
 document.querySelector('#resetGame').addEventListener('click', resetGame);
 soundToggle.addEventListener('click', () => { muted = !muted; soundToggle.textContent = muted ? '◖ ×' : '◖)))'; soundToggle.ariaPressed = String(muted); soundToggle.ariaLabel = muted ? 'Unmute sound' : 'Mute sound'; if (!muted) sound('tap'); });
-const savedBest = Number(localStorage.getItem(bestKey) || 0); bestEl.textContent = savedBest ? String(savedBest).padStart(2, '0') : '--';
+
+function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
+function maybeShowInstallPrompt() { if (!isStandalone() && !getCookie(INSTALL_COOKIE) && installDialog?.showModal) setTimeout(() => installDialog.showModal(), 1200); }
+window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstallPrompt = event; maybeShowInstallPrompt(); });
+installButton?.addEventListener('click', async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt = null; } setCookie(INSTALL_COOKIE, '1', 30); installDialog.close(); });
+dismissInstall?.addEventListener('click', () => { setCookie(INSTALL_COOKIE, '1', 30); installDialog.close(); });
+if (!isStandalone() && isIOS()) { document.querySelector('#iosInstallHint').hidden = false; maybeShowInstallPrompt(); } else if (!isStandalone()) document.querySelector('#iosInstallHint').hidden = true;
 startGame();
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
