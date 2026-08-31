@@ -85,4 +85,7 @@ inlineNextLevel?.addEventListener('click', advanceLevel);
 replayLevelButton?.addEventListener('click', () => { levelDialog.close(); startGame(); messageEl.textContent = `LEVEL ${String(currentLevel()).padStart(2, '0')} // RETRY SEQUENCE`; });
 if (!isStandalone() && isIOS()) { document.querySelector('#iosInstallHint').hidden = false; maybeShowInstallPrompt(); } else if (!isStandalone()) document.querySelector('#iosInstallHint').hidden = true;
 startGame();
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+if ('serviceWorker' in navigator) window.addEventListener('load', async () => {
+  const registration = await navigator.serviceWorker.register('/sw.js');
+  registration.update();
+});
