@@ -19,6 +19,20 @@ const LEVEL_COOKIE = 'lights_out_level';
 const BEST_COOKIE = 'lights_out_best_';
 const INSTALL_COOKIE = 'lights_out_install_dismissed';
 const MAX_LEVEL = 99;
+const PATTERNS = [
+  ['.X...', '...X.', '..X..', '.....', '.....'],
+  ['XX...', '..X..', '...X.', '.....', '.X...'],
+  ['X..X.', '.X...', '...X.', '..X..', '.....'],
+  ['.XX..', '...X.', 'X....', '..X..', '....X'],
+  ['X.X..', '..XX.', '.....', '.X..X', '...X.'],
+  ['..X.X', 'X....', '.XX..', '...X.', '.X...'],
+  ['XX..X', '...X.', '.X.X.', 'X....', '..X..'],
+  ['X.X.X', '.X...', '...X.', '.XX..', '..X..'],
+  ['.XXX.', 'X...X', '..X..', '.X.X.', 'X...X'],
+  ['XX.XX', '.X.X.', 'X...X', '..X..', 'XX.XX'],
+  ['X..XX', 'XX...', '.X.X.', '...XX', 'X....'],
+  ['.XXXX', 'X...X', 'XX.XX', 'X...X', 'XXXX.']
+];
 
 function getCookie(name) { return document.cookie.split('; ').find(row => row.startsWith(`${name}=`))?.split('=')[1] ?? ''; }
 function setCookie(name, value, days = 3650) { document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${days * 86400}; path=/; SameSite=Lax`; }
@@ -26,11 +40,10 @@ function currentLevel() { return Math.min(MAX_LEVEL, Math.max(1, Number(getCooki
 function blankBoard() { return Array.from({ length: SIZE }, () => Array(SIZE).fill(false)); }
 function copyGrid(grid) { return grid.map(row => [...row]); }
 function toggle(grid, row, col) { [[0,0],[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr, dc]) => { const r = row + dr, c = col + dc; if (r >= 0 && r < SIZE && c >= 0 && c < SIZE) grid[r][c] = !grid[r][c]; }); }
-function randomPuzzle() {
+function levelPuzzle() {
   const grid = blankBoard();
-  const level = currentLevel();
-  const scrambleMoves = Math.min(95, 8 + level * 3 + Math.floor(Math.random() * (level + 5)));
-  for (let i = 0; i < scrambleMoves; i++) toggle(grid, Math.floor(Math.random() * SIZE), Math.floor(Math.random() * SIZE));
+  const pattern = PATTERNS[(currentLevel() - 1) % PATTERNS.length];
+  pattern.forEach((row, r) => [...row].forEach((value, c) => { if (value === 'X') toggle(grid, r, c); }));
   return grid;
 }
 function render() {
@@ -53,7 +66,7 @@ function win() {
 }
 function advanceLevel() { const next = Math.min(MAX_LEVEL, currentLevel() + 1); setCookie(LEVEL_COOKIE, next); if (levelDialog.open) levelDialog.close(); startGame(); messageEl.textContent = `LEVEL ${String(next).padStart(2, '0')} // SEQUENCE READY`; }
 function updateBest() { const best = Number(getCookie(`${BEST_COOKIE}${currentLevel()}`)) || 0; bestEl.textContent = best ? String(best).padStart(2, '0') : '--'; }
-function startGame() { board = randomPuzzle(); startingBoard = copyGrid(board); moves = 0; levelContinue.hidden = true; updateBest(); messageEl.textContent = 'TAP A NODE TO BEGIN SEQUENCE'; render(); }
+function startGame() { board = levelPuzzle(); startingBoard = copyGrid(board); moves = 0; levelContinue.hidden = true; updateBest(); messageEl.textContent = 'MEMORY PATTERN // TAP A NODE TO BEGIN'; render(); }
 function resetGame() { board = copyGrid(startingBoard); moves = 0; messageEl.textContent = 'BOARD RESET // SEQUENCE READY'; render(); sound('reset'); }
 function sound(kind, step = 0) { if (muted) return; audio ??= new (window.AudioContext || window.webkitAudioContext)(); const osc = audio.createOscillator(), gain = audio.createGain(), now = audio.currentTime; const frequencies = { tap: 210 + (step % 5) * 32, reset: 120, win: 520 }; osc.type = kind === 'win' ? 'sine' : 'square'; osc.frequency.setValueAtTime(frequencies[kind], now); if (kind === 'win') osc.frequency.exponentialRampToValueAtTime(1040, now + .35); gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(kind === 'win' ? .14 : .055, now + .01); gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'win' ? .5 : .09)); osc.connect(gain).connect(audio.destination); osc.start(now); osc.stop(now + (kind === 'win' ? .52 : .1)); }
 
