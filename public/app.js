@@ -12,6 +12,8 @@ const levelDialog = document.querySelector('#levelDialog');
 const levelSummary = document.querySelector('#levelSummary');
 const nextLevelButton = document.querySelector('#nextLevel');
 const replayLevelButton = document.querySelector('#replayLevel');
+const levelContinue = document.querySelector('#levelContinue');
+const inlineNextLevel = document.querySelector('#inlineNextLevel');
 let board = [], startingBoard = [], moves = 0, muted = false, audio, deferredInstallPrompt;
 const LEVEL_COOKIE = 'lights_out_level';
 const BEST_COOKIE = 'lights_out_best_';
@@ -47,10 +49,11 @@ function win() {
   const level = currentLevel(), best = Number(getCookie(`${BEST_COOKIE}${level}`)) || 0;
   if (!best || moves < best) { setCookie(`${BEST_COOKIE}${level}`, moves); bestEl.textContent = String(moves).padStart(2, '0'); }
   messageEl.textContent = level < MAX_LEVEL ? `BLACKOUT ACHIEVED // LEVEL ${String(level).padStart(2, '0')}` : 'ALL LEVELS COMPLETE'; sound('win');
-  if (level < MAX_LEVEL) { levelSummary.textContent = `LEVEL ${String(level).padStart(2, '0')} CLEARED IN ${moves} MOVES`; setTimeout(() => levelDialog.showModal(), 650); }
+  if (level < MAX_LEVEL) { levelSummary.textContent = `LEVEL ${String(level).padStart(2, '0')} CLEARED IN ${moves} MOVES`; levelContinue.hidden = false; setTimeout(() => { try { if (!levelDialog.open) levelDialog.showModal(); } catch { levelDialog.setAttribute('open', ''); } }, 650); }
 }
+function advanceLevel() { const next = Math.min(MAX_LEVEL, currentLevel() + 1); setCookie(LEVEL_COOKIE, next); if (levelDialog.open) levelDialog.close(); startGame(); messageEl.textContent = `LEVEL ${String(next).padStart(2, '0')} // SEQUENCE READY`; }
 function updateBest() { const best = Number(getCookie(`${BEST_COOKIE}${currentLevel()}`)) || 0; bestEl.textContent = best ? String(best).padStart(2, '0') : '--'; }
-function startGame() { board = randomPuzzle(); startingBoard = copyGrid(board); moves = 0; updateBest(); messageEl.textContent = 'TAP A NODE TO BEGIN SEQUENCE'; render(); }
+function startGame() { board = randomPuzzle(); startingBoard = copyGrid(board); moves = 0; levelContinue.hidden = true; updateBest(); messageEl.textContent = 'TAP A NODE TO BEGIN SEQUENCE'; render(); }
 function resetGame() { board = copyGrid(startingBoard); moves = 0; messageEl.textContent = 'BOARD RESET // SEQUENCE READY'; render(); sound('reset'); }
 function sound(kind, step = 0) { if (muted) return; audio ??= new (window.AudioContext || window.webkitAudioContext)(); const osc = audio.createOscillator(), gain = audio.createGain(), now = audio.currentTime; const frequencies = { tap: 210 + (step % 5) * 32, reset: 120, win: 520 }; osc.type = kind === 'win' ? 'sine' : 'square'; osc.frequency.setValueAtTime(frequencies[kind], now); if (kind === 'win') osc.frequency.exponentialRampToValueAtTime(1040, now + .35); gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(kind === 'win' ? .14 : .055, now + .01); gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'win' ? .5 : .09)); osc.connect(gain).connect(audio.destination); osc.start(now); osc.stop(now + (kind === 'win' ? .52 : .1)); }
 
@@ -64,7 +67,8 @@ function maybeShowInstallPrompt() { if (!isStandalone() && !getCookie(INSTALL_CO
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstallPrompt = event; maybeShowInstallPrompt(); });
 installButton?.addEventListener('click', async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt = null; } setCookie(INSTALL_COOKIE, '1', 30); installDialog.close(); });
 dismissInstall?.addEventListener('click', () => { setCookie(INSTALL_COOKIE, '1', 30); installDialog.close(); });
-nextLevelButton?.addEventListener('click', () => { const next = Math.min(MAX_LEVEL, currentLevel() + 1); setCookie(LEVEL_COOKIE, next); levelDialog.close(); startGame(); messageEl.textContent = `LEVEL ${String(next).padStart(2, '0')} // SEQUENCE READY`; });
+nextLevelButton?.addEventListener('click', advanceLevel);
+inlineNextLevel?.addEventListener('click', advanceLevel);
 replayLevelButton?.addEventListener('click', () => { levelDialog.close(); startGame(); messageEl.textContent = `LEVEL ${String(currentLevel()).padStart(2, '0')} // RETRY SEQUENCE`; });
 if (!isStandalone() && isIOS()) { document.querySelector('#iosInstallHint').hidden = false; maybeShowInstallPrompt(); } else if (!isStandalone()) document.querySelector('#iosInstallHint').hidden = true;
 startGame();
