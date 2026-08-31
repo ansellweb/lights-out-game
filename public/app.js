@@ -8,6 +8,10 @@ const soundToggle = document.querySelector('#soundToggle');
 const installDialog = document.querySelector('#installDialog');
 const installButton = document.querySelector('#installApp');
 const dismissInstall = document.querySelector('#dismissInstall');
+const levelDialog = document.querySelector('#levelDialog');
+const levelSummary = document.querySelector('#levelSummary');
+const nextLevelButton = document.querySelector('#nextLevel');
+const replayLevelButton = document.querySelector('#replayLevel');
 let board = [], startingBoard = [], moves = 0, muted = false, audio, deferredInstallPrompt;
 const LEVEL_COOKIE = 'lights_out_level';
 const BEST_COOKIE = 'lights_out_best_';
@@ -43,7 +47,7 @@ function win() {
   const level = currentLevel(), best = Number(getCookie(`${BEST_COOKIE}${level}`)) || 0;
   if (!best || moves < best) { setCookie(`${BEST_COOKIE}${level}`, moves); bestEl.textContent = String(moves).padStart(2, '0'); }
   messageEl.textContent = level < MAX_LEVEL ? `BLACKOUT ACHIEVED // LEVEL ${String(level).padStart(2, '0')}` : 'ALL LEVELS COMPLETE'; sound('win');
-  if (level < MAX_LEVEL) { setCookie(LEVEL_COOKIE, level + 1); setTimeout(() => { startGame(); messageEl.textContent = `LEVEL ${String(level + 1).padStart(2, '0')} // SEQUENCE READY`; }, 1100); }
+  if (level < MAX_LEVEL) { levelSummary.textContent = `LEVEL ${String(level).padStart(2, '0')} CLEARED IN ${moves} MOVES`; setTimeout(() => levelDialog.showModal(), 650); }
 }
 function updateBest() { const best = Number(getCookie(`${BEST_COOKIE}${currentLevel()}`)) || 0; bestEl.textContent = best ? String(best).padStart(2, '0') : '--'; }
 function startGame() { board = randomPuzzle(); startingBoard = copyGrid(board); moves = 0; updateBest(); messageEl.textContent = 'TAP A NODE TO BEGIN SEQUENCE'; render(); }
@@ -60,6 +64,8 @@ function maybeShowInstallPrompt() { if (!isStandalone() && !getCookie(INSTALL_CO
 window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredInstallPrompt = event; maybeShowInstallPrompt(); });
 installButton?.addEventListener('click', async () => { if (deferredInstallPrompt) { deferredInstallPrompt.prompt(); await deferredInstallPrompt.userChoice; deferredInstallPrompt = null; } setCookie(INSTALL_COOKIE, '1', 30); installDialog.close(); });
 dismissInstall?.addEventListener('click', () => { setCookie(INSTALL_COOKIE, '1', 30); installDialog.close(); });
+nextLevelButton?.addEventListener('click', () => { const next = Math.min(MAX_LEVEL, currentLevel() + 1); setCookie(LEVEL_COOKIE, next); levelDialog.close(); startGame(); messageEl.textContent = `LEVEL ${String(next).padStart(2, '0')} // SEQUENCE READY`; });
+replayLevelButton?.addEventListener('click', () => { levelDialog.close(); startGame(); messageEl.textContent = `LEVEL ${String(currentLevel()).padStart(2, '0')} // RETRY SEQUENCE`; });
 if (!isStandalone() && isIOS()) { document.querySelector('#iosInstallHint').hidden = false; maybeShowInstallPrompt(); } else if (!isStandalone()) document.querySelector('#iosInstallHint').hidden = true;
 startGame();
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
